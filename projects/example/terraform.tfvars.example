@@ -1,0 +1,49 @@
+# Copy to terraform.tfvars and edit. No secrets belong in this file:
+#   DBT_CLOUD_TOKEN                 dbt platform API token (service token or PAT)
+#   TF_VAR_snowflake_private_key    PEM private key of the Snowflake service account
+
+# --- Account -----------------------------------------------------------------
+dbt_account_id = 12345
+dbt_host_url   = "https://cloud.getdbt.com/api"
+
+# --- Project -----------------------------------------------------------------
+project_name        = "Terraform example"
+project_description = "Created by Terraform"
+
+# Existing account-level Snowflake connection (Account settings > Connections).
+connection_id = 67890
+
+# --- Environments ------------------------------------------------------------
+# dbt_version      = "latest-fusion"
+# enable_dbt_state = false
+
+# Leave unset for Development / Production / Production CI.
+# Set to add Staging and Staging CI and point Development at this branch.
+# staging_branch = "staging"
+
+# --- Deployment credentials --------------------------------------------------
+# Leave unset to create the environments without credentials and finish them
+# in the UI. Set to have Terraform create key-pair credentials per environment.
+# snowflake_deployment = {
+#   user      = "SVC_DBT_EXAMPLE"
+#   database  = "ANALYTICS"
+#   role      = "TRANSFORMER"
+#   warehouse = "TRANSFORMING"
+# }
+
+# Default schemas: production = analytics, staging = analytics_staging, CI = dbt_ci.
+# environment_overrides = {
+#   production_ci = { database = "ANALYTICS_CI" }
+# }
+
+# --- Jobs --------------------------------------------------------------------
+# All triggers start off. Switch on once a repository is attached and the
+# Production - Build job has run once.
+# job_triggers  = { schedule = true, ci = true, merge = true }
+# schedule_cron = "0 9 * * 1-5"
+
+# --- Repository (iteration 2) ------------------------------------------------
+# repository = {
+#   remote_url        = "my-group/my-dbt-project"
+#   gitlab_project_id = 123456
+# }

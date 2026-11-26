@@ -1,0 +1,22 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# The example project's values are personal test settings. For real projects,
+# commit terraform.tfvars: it holds no secrets and is the record of the project.
+projects/example/terraform.tfvars
+projects/example/backend.tf
+
+# Never commit secrets
+*.secret.tfvars
+*.pem
+*.p8
+.env
+
+# Python
+__pycache__/
+.venv/
+.DS_Store

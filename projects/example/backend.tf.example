@@ -1,0 +1,31 @@
+# Copy to backend.tf, keep ONE block, then run: terraform init -migrate-state
+# One state per dbt project: give every project directory its own key/name.
+# See docs/state.md.
+
+# --- Option A: GitLab-managed Terraform state --------------------------------
+# Address, lock/unlock addresses and credentials are passed at init time
+# (see docs/state.md), so nothing environment-specific is committed.
+terraform {
+  backend "http" {}
+}
+
+# --- Option B: S3 ------------------------------------------------------------
+# terraform {
+#   backend "s3" {
+#     bucket       = "<state-bucket>"
+#     key          = "dbt-platform/projects/example/terraform.tfstate"
+#     region       = "<region>"
+#     use_lockfile = true
+#     encrypt      = true
+#   }
+# }
+
+# --- Option C: Azure Blob Storage --------------------------------------------
+# terraform {
+#   backend "azurerm" {
+#     resource_group_name  = "<resource-group>"
+#     storage_account_name = "<storage-account>"
+#     container_name       = "tfstate"
+#     key                  = "dbt-platform/projects/example/terraform.tfstate"
+#   }
+# }
