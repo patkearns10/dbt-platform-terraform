@@ -2,13 +2,6 @@
 
 Terraform that creates a dbt platform project on Snowflake with a standard set of environments, two access groups and starter jobs, and keeps it under state so drift is visible.
 
-It combines two earlier repos:
-
-| Taken from | What |
-| --- | --- |
-| [`patkearns10/tf_dbt`](https://github.com/patkearns10/tf_dbt) | Token from the environment only, dedicated CI environments, optional connection credentials, trigger switches, the Streamlit front door |
-| [`dbt-labs/ps-demo-terraform-managed`](https://github.com/dbt-labs/ps-demo-terraform-managed) | Shared module plus thin per-project root, data-driven environments and jobs, key-pair credentials with write-only secrets, remote state with locking |
-
 ## What you get
 
 | Layout | Environments | Jobs |
@@ -114,7 +107,7 @@ docker build -t dbt-project-factory .
 docker run -p 8501:8501 dbt-project-factory
 ```
 
-In a container with no remote backend, state lasts only as long as the container. That is enough to create and destroy in one sitting, as the original `tf_dbt` app did, but not to manage a project over time.
+In a container with no remote backend, state lasts only as long as the container. That is enough to create and destroy in one sitting, but not to manage a project over time.
 
 ## Inputs
 
