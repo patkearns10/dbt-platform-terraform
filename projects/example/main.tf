@@ -17,9 +17,11 @@ module "dbt_project" {
   snowflake_private_key_passphrase = var.snowflake_private_key_passphrase
   snowflake_private_key_version    = var.snowflake_private_key_version
 
-  create_default_jobs = var.create_default_jobs
-  job_triggers        = var.job_triggers
-  schedule_cron       = var.schedule_cron
+  job_management = var.job_management
+  job_triggers   = var.job_triggers
+  schedule_cron  = var.schedule_cron
+
+  create_groups = var.create_groups
 
   repository = var.repository
 }

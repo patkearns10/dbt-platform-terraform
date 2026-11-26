@@ -17,11 +17,15 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import streamlit as st
 
 REPO_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_DIR / "scripts"))
+from check_connection import read_variable_default, run_checks  # noqa: E402
+
 PROJECTS_DIR = REPO_DIR / "projects"
 TEMPLATE_DIR = PROJECTS_DIR / "example"
 TEMPLATE_FILES = ["main.tf", "variables.tf", "outputs.tf", "providers.tf", "versions.tf", ".terraform.lock.hcl"]
@@ -86,17 +90,25 @@ def form():
     host_url = col2.text_input("API URL", value="https://cloud.getdbt.com/api", help="Ends in /api")
 
     st.subheader("Project")
-    project_name = st.text_input("Project name")
+    project_name = st.text_input("Project name", placeholder="BHP_SANDBOX", help="Upper case with underscores.")
     project_description = st.text_input("Description", value="Created by Terraform")
+    default_connection = read_variable_default(
+        (TEMPLATE_DIR / "variables.tf").read_text(encoding="utf-8"), "connection_id"
+    )
     connection_id = st.number_input(
-        "Connection ID", min_value=1, value=None, step=1, format="%d",
-        help="An existing account-level Snowflake connection. Connections are shared, not created per project.",
+        "Connection ID (optional)", min_value=1, value=None, step=1, format="%d",
+        help=f"Leave empty to use the shared Snowflake connection ({default_connection}). "
+        "Connections are shared, not created per project.",
+    )
+    create_groups = st.checkbox(
+        "Create <PROJECT_NAME>_ADMIN and <PROJECT_NAME>_DEVS groups", value=True,
+        help="Admin and Developer on this project, with write access to all environments.",
     )
 
     st.subheader("Environments")
     col1, col2 = st.columns(2)
     dbt_version = col1.selectbox(
-        "dbt version", ["latest-fusion", "fusion-stable", "latest", "compatible", "extended"]
+        "dbt version", ["fusion-stable", "latest-fusion", "latest", "compatible", "extended"]
     )
     enable_dbt_state = col2.checkbox("Enable dbt State", value=False)
     use_staging = st.checkbox(
@@ -122,9 +134,16 @@ def form():
         snowflake_deployment = {k: v for k, v in snowflake_deployment.items() if v}
 
     st.subheader("Jobs")
-    create_default_jobs = st.checkbox("Create starter jobs (Build, Merge, CI)", value=True)
+    job_options = {
+        "bootstrap": "Create once, then leave to the team (changes in the UI are kept)",
+        "managed": "Managed by Terraform (changes in the UI are reverted)",
+        "none": "No starter jobs",
+    }
+    job_management = st.radio(
+        "Starter jobs (Build, Merge, CI)", list(job_options), format_func=job_options.get
+    )
     job_triggers = {}
-    if create_default_jobs:
+    if job_management != "none":
         st.caption("Leave triggers off until a repository is attached and the Build job has run once.")
         col1, col2, col3 = st.columns(3)
         job_triggers = {
@@ -136,7 +155,7 @@ def form():
 
     missing = [
         label for label, value in
-        [("dbt account ID", account_id), ("Project name", project_name.strip()), ("Connection ID", connection_id)]
+        [("dbt account ID", account_id), ("Project name", project_name.strip())]
         if not value
     ]
     if create_credentials and not {"user", "database"} <= set(snowflake_deployment):
@@ -152,13 +171,15 @@ def form():
         "enable_dbt_state": True if enable_dbt_state else None,
         "staging_branch": staging_branch,
         "snowflake_deployment": snowflake_deployment,
-        "create_default_jobs": None if create_default_jobs else False,
+        "create_groups": None if create_groups else False,
+        "job_management": None if job_management == "bootstrap" else job_management,
         "job_triggers": job_triggers,
     }
-    return values, missing, create_credentials
+    connection_to_check = values["connection_id"] or default_connection
+    return values, missing, create_credentials, connection_to_check
 
 
-def local_runner(values, tfvars, needs_key):
+def local_runner(values, tfvars, needs_key, connection_to_check):
     st.subheader("Run Terraform on this machine")
     slug = st.text_input(
         "Project directory", value=slugify(values["project_name"]),
@@ -177,13 +198,21 @@ def local_runner(values, tfvars, needs_key):
         st.info("Enter a dbt platform API token to run Terraform.")
         return
 
+    if st.button("Test connection"):
+        results = run_checks(token, values["dbt_account_id"], values["dbt_host_url"], connection_to_check)
+        for name, passed, detail in results:
+            (st.success if passed else st.error)(f"{name}: {detail}")
+
     confirm = st.checkbox(f"I have reviewed the plan for projects/{slug}")
-    col1, col2 = st.columns(2)
+    confirm_destroy = st.checkbox(f"Allow destroy of everything in projects/{slug}")
+    col1, col2, col3 = st.columns(3)
     action = None
     if col1.button("Plan"):
         action = ["plan", "-input=false"]
     if col2.button("Apply", disabled=not confirm, type="primary"):
         action = ["apply", "-input=false", "-auto-approve"]
+    if col3.button("Destroy", disabled=not confirm_destroy):
+        action = ["destroy", "-input=false", "-auto-approve"]
 
     if action:
         workdir = prepare_project_dir(slug, tfvars)
@@ -193,7 +222,11 @@ def local_runner(values, tfvars, needs_key):
                 ok, output = run_terraform(workdir, secrets, *action)
         st.code(output or "(no output)", language="text")
         (st.success if ok else st.error)(f"terraform {action[0]} {'finished' if ok else 'failed'}.")
-    st.caption("To remove a project, run terraform destroy from its directory. It is deliberately not a button.")
+    st.caption(
+        "State is kept in the project directory (or its backend). On a host with no persistent disk "
+        "and no backend, state lasts only as long as the container: fine for create and destroy in "
+        "one sitting, not for managing a project over time."
+    )
 
 
 def main():
@@ -201,7 +234,7 @@ def main():
     st.title("dbt project factory")
     st.caption("Creates a dbt platform project with standard environments and starter jobs, through Terraform.")
 
-    values, missing, needs_key = form()
+    values, missing, needs_key, connection_to_check = form()
 
     st.divider()
     if missing:
@@ -215,7 +248,7 @@ def main():
 
     st.divider()
     if shutil.which("terraform"):
-        local_runner(values, tfvars, needs_key)
+        local_runner(values, tfvars, needs_key, connection_to_check)
     else:
         st.info(
             "The Terraform CLI is not available here, so this app only produces the file. "

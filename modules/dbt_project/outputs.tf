@@ -13,10 +13,15 @@ output "environment_ids" {
 
 output "job_ids" {
   description = "Job IDs keyed by job (production_build, production_merge, production_ci, ...)."
-  value       = { for k, job in dbtcloud_job.this : k => job.job_id }
+  value       = { for k, job in merge(dbtcloud_job.bootstrap, dbtcloud_job.managed) : k => job.job_id }
 }
 
 output "repository_id" {
   description = "ID of the attached repository. null when none is attached."
   value       = try(dbtcloud_repository.this[0].repository_id, null)
+}
+
+output "group_ids" {
+  description = "Group IDs keyed by role (admin, devs). Empty when create_groups is false."
+  value       = { for k, group in dbtcloud_group.this : k => group.id }
 }

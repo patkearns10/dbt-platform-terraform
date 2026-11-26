@@ -121,5 +121,5 @@ drift:
 
 - Which backend, and who can read it.
 - Which identity runs apply: a dbt platform service token scoped to project creation, held only by the pipeline.
-- Whether Terraform keeps owning jobs after creation, or only project, environments and credentials (see "Who owns what" in the README).
+- Whether projects are maintained from the platform after creation at all. If not, state only matters for the session that creates them. If so, see "Who owns what" in the README for what Terraform keeps in line.
 - How the Snowflake service-account key reaches the runner (CI/CD variable, or a secrets manager).

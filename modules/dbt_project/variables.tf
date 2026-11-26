@@ -38,9 +38,9 @@ variable "connection_id" {
 # -----------------------------------------------------------------------------
 
 variable "dbt_version" {
-  description = "dbt release track for all environments, e.g. latest-fusion, fusion-stable, latest, compatible, extended."
+  description = "dbt release track for all environments, e.g. fusion-stable, latest-fusion, latest, compatible, extended."
   type        = string
-  default     = "latest-fusion"
+  default     = "fusion-stable"
 }
 
 variable "enable_dbt_state" {
@@ -125,10 +125,21 @@ variable "snowflake_private_key_version" {
 # Jobs
 # -----------------------------------------------------------------------------
 
-variable "create_default_jobs" {
-  description = "Create the starter jobs (Build and Merge per target environment, CI per CI environment). Set false if teams own their jobs entirely."
-  type        = bool
-  default     = true
+variable "job_management" {
+  description = <<-EOT
+    Who owns the starter jobs (Build and Merge per target environment, CI per CI environment).
+      bootstrap  Terraform creates them once, then ignores every later change, so teams
+                 can edit them in the UI without Terraform reverting it. (default)
+      managed    Terraform owns them; UI edits show as drift and are reverted on apply.
+      none       No jobs are created.
+  EOT
+  type        = string
+  default     = "bootstrap"
+
+  validation {
+    condition     = contains(["bootstrap", "managed", "none"], var.job_management)
+    error_message = "job_management must be bootstrap, managed or none."
+  }
 }
 
 variable "job_triggers" {
@@ -136,6 +147,8 @@ variable "job_triggers" {
     Which automatic triggers are switched on. All off by default so a new
     project is created quiet. Turn them on once a repository is attached and
     the Build job has run once (CI and Merge jobs defer to that run's state).
+    With job_management = "bootstrap" this only applies when the jobs are
+    first created; after that, change triggers in the UI.
   EOT
   type = object({
     schedule = optional(bool, false)
@@ -149,6 +162,16 @@ variable "schedule_cron" {
   description = "Cron expression (UTC) for the scheduled Build jobs."
   type        = string
   default     = "0 9 * * 1-5"
+}
+
+# -----------------------------------------------------------------------------
+# Groups
+# -----------------------------------------------------------------------------
+
+variable "create_groups" {
+  description = "Create <PROJECT_NAME>_ADMIN (Admin) and <PROJECT_NAME>_DEVS (Developer), both scoped to this project with write access to all environments. The prefix is the project name in upper case with anything other than letters and digits replaced by underscores."
+  type        = bool
+  default     = true
 }
 
 # -----------------------------------------------------------------------------

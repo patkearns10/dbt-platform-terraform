@@ -48,7 +48,7 @@ locals {
       name          = "${local.target_environments[env.defers_to].name} - CI"
       description   = "Builds only what changed, in a temporary schema, on every pull request into the ${local.target_environments[env.defers_to].name} branch."
       job_type      = "ci"
-      steps         = [local.modified_only]
+      steps         = ["dbt ls --select state:modified", local.modified_only]
       generate_docs = false
       freshness     = false
       scheduled     = false
@@ -61,11 +61,17 @@ locals {
     }
   }
 
-  jobs = var.create_default_jobs ? merge(local.build_jobs, local.merge_jobs, local.ci_jobs) : {}
+  jobs = merge(local.build_jobs, local.merge_jobs, local.ci_jobs)
 }
 
-resource "dbtcloud_job" "this" {
-  for_each = local.jobs
+# The same job definition is declared twice because Terraform's lifecycle
+# rules cannot be switched by a variable. Exactly one of the two is created.
+
+# job_management = "bootstrap": created once, then left to the team.
+# A job deleted in the UI is recreated on the next apply; to drop one for
+# good, remove it from state with `terraform state rm`.
+resource "dbtcloud_job" "bootstrap" {
+  for_each = var.job_management == "bootstrap" ? local.jobs : {}
 
   project_id     = dbtcloud_project.this.id
   environment_id = dbtcloud_environment.deployment[each.value.environment].environment_id
@@ -88,4 +94,40 @@ resource "dbtcloud_job" "this" {
   schedule_cron = each.value.scheduled ? var.schedule_cron : null
 
   cost_optimization_features = var.enable_dbt_state ? ["inherit_environment"] : null
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
+# job_management = "managed": Terraform keeps the jobs in line with this file.
+resource "dbtcloud_job" "managed" {
+  for_each = var.job_management == "managed" ? local.jobs : {}
+
+  project_id     = dbtcloud_project.this.id
+  environment_id = dbtcloud_environment.deployment[each.value.environment].environment_id
+  name           = each.value.name
+  description    = each.value.description
+  job_type       = each.value.job_type
+  execute_steps  = each.value.steps
+  triggers       = each.value.triggers
+
+  deferring_environment_id = (
+    each.value.defers_to == null ? null :
+    dbtcloud_environment.deployment[each.value.defers_to].environment_id
+  )
+
+  generate_docs        = each.value.generate_docs
+  run_generate_sources = each.value.freshness
+
+  schedule_type = each.value.scheduled ? "custom_cron" : null
+  schedule_cron = each.value.scheduled ? var.schedule_cron : null
+
+  cost_optimization_features = var.enable_dbt_state ? ["inherit_environment"] : null
+}
+
+# Jobs created by the first version of this module lived at dbtcloud_job.this.
+moved {
+  from = dbtcloud_job.this
+  to   = dbtcloud_job.bootstrap
 }

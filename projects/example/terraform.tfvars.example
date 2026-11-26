@@ -7,14 +7,15 @@ dbt_account_id = 12345
 dbt_host_url   = "https://cloud.getdbt.com/api"
 
 # --- Project -----------------------------------------------------------------
-project_name        = "Terraform example"
+project_name        = "BHP_SANDBOX"
 project_description = "Created by Terraform"
 
-# Existing account-level Snowflake connection (Account settings > Connections).
-connection_id = 67890
+# Defaults to the shared Snowflake connection set in variables.tf.
+# Only set this for a project that needs a different connection.
+# connection_id = 67890
 
 # --- Environments ------------------------------------------------------------
-# dbt_version      = "latest-fusion"
+# dbt_version      = "fusion-stable"
 # enable_dbt_state = false
 
 # Leave unset for Development / Production / Production CI.
@@ -36,7 +37,15 @@ connection_id = 67890
 #   production_ci = { database = "ANALYTICS_CI" }
 # }
 
+# --- Groups ------------------------------------------------------------------
+# Creates <PROJECT_NAME>_ADMIN and <PROJECT_NAME>_DEVS for this project.
+# create_groups = true
+
 # --- Jobs --------------------------------------------------------------------
+# bootstrap (default): created once, then free to change in the UI.
+# managed: Terraform keeps them in line. none: no jobs.
+# job_management = "bootstrap"
+
 # All triggers start off. Switch on once a repository is attached and the
 # Production - Build job has run once.
 # job_triggers  = { schedule = true, ci = true, merge = true }

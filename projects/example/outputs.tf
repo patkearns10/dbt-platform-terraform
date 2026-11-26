@@ -12,3 +12,8 @@ output "job_ids" {
   description = "Job IDs keyed by job."
   value       = module.dbt_project.job_ids
 }
+
+output "group_ids" {
+  description = "Group IDs keyed by role (admin, devs)."
+  value       = module.dbt_project.group_ids
+}

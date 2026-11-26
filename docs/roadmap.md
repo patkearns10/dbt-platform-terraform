@@ -2,7 +2,7 @@
 
 ## Iteration 1 (this repo)
 
-Project, environments, optional key-pair credentials and starter jobs on an existing Snowflake connection. No repository.
+Project, environments, optional key-pair credentials, two project groups and starter jobs on an existing Snowflake connection. No repository.
 
 ## Iteration 2: attach a GitLab repository
 
@@ -64,11 +64,13 @@ To decide: which GitLab group new repositories go in, which token creates them, 
 
 That gives one front door and one engine, an approval step, and an audit trail, and Snowflake never holds the dbt token. To confirm with the Snowflake team: whether external access integrations to the GitLab host are allowed, and which runtime (warehouse or container) their Streamlit apps use.
 
-**Elsewhere.** Any container host that can hold the Terraform CLI can run the app in its first mode, provided each project directory has a remote backend.
+**A container host (Render, or similar).** The `Dockerfile` bundles the Terraform CLI, so the app runs in its first mode. Without a remote backend this is create and destroy in one sitting, with nothing remembered afterwards. That is a fair choice if projects are not going to be maintained from the platform. If they are, each project directory needs a remote backend, at which point the merge request route above is simpler.
 
 ## Later
 
-- **Group access.** Grant existing, SSO-mapped team groups access to the new project with `dbtcloud_group_partial_permissions`, rather than creating two groups per project.
+- **SSO mapping** for the two project groups (`sso_mapping_groups`), so membership comes from the identity provider.
+- **Shared team groups.** Where one team owns several projects, grant its existing groups access with `dbtcloud_group_partial_permissions` instead of two new groups per project.
+- **License mapping** from identity-provider groups (`dbtcloud_license_map`). This is account-level, so it belongs in a separate account root, not in the per-project module.
 - **Notifications** on job failure.
 - **CI extras**: SQL linting and compare changes (Advanced CI), cloning incremental models before the CI build.
 - **Environment variables and extended attributes** per environment.

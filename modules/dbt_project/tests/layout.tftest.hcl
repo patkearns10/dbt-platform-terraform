@@ -4,7 +4,7 @@
 mock_provider "dbtcloud" {}
 
 variables {
-  project_name  = "Test project"
+  project_name  = "BHP_SANDBOX"
   connection_id = 123
 }
 
@@ -22,13 +22,13 @@ run "single_trunk_defaults" {
   }
 
   assert {
-    condition     = sort(keys(dbtcloud_job.this)) == tolist(["production_build", "production_ci", "production_merge"])
+    condition     = sort(keys(dbtcloud_job.bootstrap)) == tolist(["production_build", "production_ci", "production_merge"])
     error_message = "Default layout should have Build, CI and Merge jobs for Production."
   }
 
   assert {
     condition = alltrue([
-      for job in dbtcloud_job.this :
+      for job in dbtcloud_job.bootstrap :
       !job.triggers.schedule && !job.triggers.on_merge && !job.triggers.github_webhook && !job.triggers.git_provider_webhook
     ])
     error_message = "All triggers should be off by default."
@@ -64,7 +64,7 @@ run "staging_layout_with_credentials" {
   }
 
   assert {
-    condition     = length(dbtcloud_environment.deployment) == 4 && length(dbtcloud_job.this) == 6
+    condition     = length(dbtcloud_environment.deployment) == 4 && length(dbtcloud_job.bootstrap) == 6
     error_message = "Staging layout should have 4 deployment environments and 6 jobs."
   }
 
@@ -94,13 +94,84 @@ run "staging_layout_with_credentials" {
   }
 
   assert {
-    condition     = dbtcloud_job.this["production_ci"].triggers.git_provider_webhook && dbtcloud_job.this["production_merge"].triggers.on_merge && dbtcloud_job.this["production_build"].triggers.schedule
+    condition     = dbtcloud_job.bootstrap["production_ci"].triggers.git_provider_webhook && dbtcloud_job.bootstrap["production_merge"].triggers.on_merge && dbtcloud_job.bootstrap["production_build"].triggers.schedule
     error_message = "Triggers should switch on per job type."
   }
 
   assert {
-    condition     = !dbtcloud_job.this["production_merge"].triggers.schedule && !dbtcloud_job.this["production_merge"].triggers.git_provider_webhook
+    condition     = !dbtcloud_job.bootstrap["production_merge"].triggers.schedule && !dbtcloud_job.bootstrap["production_merge"].triggers.git_provider_webhook
     error_message = "A merge job must have every other trigger off."
+  }
+}
+
+run "groups" {
+  command = plan
+
+  assert {
+    condition     = dbtcloud_group.this["admin"].name == "BHP_SANDBOX_ADMIN" && dbtcloud_group.this["devs"].name == "BHP_SANDBOX_DEVS"
+    error_message = "Groups should be <PROJECT_NAME>_ADMIN and <PROJECT_NAME>_DEVS."
+  }
+
+  assert {
+    condition = alltrue([
+      for p in dbtcloud_group.this["devs"].group_permissions :
+      p.permission_set == "developer" && !p.all_projects && p.writable_environment_categories == toset(["all"])
+    ])
+    error_message = "DEVS should be Developer on this project with write access to all environments."
+  }
+
+  assert {
+    condition     = alltrue([for p in dbtcloud_group.this["admin"].group_permissions : p.permission_set == "admin" && !p.all_projects])
+    error_message = "ADMIN should be Admin on this project only."
+  }
+}
+
+run "group_names_from_mixed_case_project" {
+  command = plan
+
+  variables {
+    project_name  = "Finance mart-2"
+    create_groups = true
+  }
+
+  assert {
+    condition     = dbtcloud_group.this["devs"].name == "FINANCE_MART_2_DEVS"
+    error_message = "Group prefix should be upper case with underscores."
+  }
+}
+
+run "no_groups" {
+  command = plan
+
+  variables {
+    create_groups = false
+  }
+
+  assert {
+    condition     = length(dbtcloud_group.this) == 0
+    error_message = "create_groups = false should create no groups."
+  }
+}
+
+run "ci_job_lists_changes_first" {
+  command = plan
+
+  assert {
+    condition     = dbtcloud_job.bootstrap["production_ci"].execute_steps == tolist(["dbt ls --select state:modified", "dbt build --select state:modified+"])
+    error_message = "CI should list modified nodes before building."
+  }
+}
+
+run "managed_jobs" {
+  command = plan
+
+  variables {
+    job_management = "managed"
+  }
+
+  assert {
+    condition     = length(dbtcloud_job.managed) == 3 && length(dbtcloud_job.bootstrap) == 0
+    error_message = "managed should create the jobs under dbtcloud_job.managed only."
   }
 }
 
@@ -108,12 +179,12 @@ run "no_jobs" {
   command = plan
 
   variables {
-    create_default_jobs = false
+    job_management = "none"
   }
 
   assert {
-    condition     = length(dbtcloud_job.this) == 0
-    error_message = "create_default_jobs = false should create no jobs."
+    condition     = length(dbtcloud_job.bootstrap) + length(dbtcloud_job.managed) == 0
+    error_message = "job_management = none should create no jobs."
   }
 }
 

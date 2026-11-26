@@ -4,6 +4,7 @@
 *.tfstate.*
 *.tfplan
 crash.log
+modules/**/.terraform.lock.hcl
 
 # The example project's values are personal test settings. For real projects,
 # commit terraform.tfvars: it holds no secrets and is the record of the project.
